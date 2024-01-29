@@ -60,6 +60,19 @@ def obtener_plantilla_interno(proceso, directorio):
 def obtener_plantilla(proceso):
     obtener_plantilla_interno(proceso, None)
 
+@cli.command()
+@click.option('--codigo_proceso', help='codigo proceso a ejecutar')
+def obtener_plantilla_codigo(codigo_proceso):
+    print("Obteniendo plantilla")
+    #obtener plantilla
+    cursor = obtener_conexion()
+    consulta = "SELECT plantilla_resolucion, codigo_version FROM bpm_procesos.version_procesos WHERE codigo_version LIKE '%"+codigo_proceso+"%'"
+    print(consulta)
+    cursor.execute(consulta)
+    resultado = list(cursor.fetchall())
+    guardar_plantilla(codigo_proceso, resultado[0], None)
+    cerrar_conexion()
+
 
 @cli.command()
 @click.option('--version', help='version proceso a ejecutar')
@@ -101,17 +114,30 @@ def obtener_id_proceso(version):
 @click.option("--solicitud",help="numero de solicitud a buscar")
 def obtener_json(solicitud):
     cur = obtener_conexion() 
-    query = "select ip.datos_solicitud  from bpm_procesos.instancia_procesos ip where ip.id ='"+solicitud+"';"  
-    print(query)
+    query = "select ip.numero_solicitud, ip.datos_solicitud  from bpm_procesos.instancia_procesos ip where ip.id ='"+solicitud+"';"  
     cur.execute(query)
     row = cur.fetchone()
-    print(row)
-    crear_directorio("json")
-    archivo_json = open("json/"+solicitud+".json",'w')
-    archivo_json.writelines(row[0])
-    archivo_json.close()
     cur.close()
+    escribir_archivo_json(solicitud, row)
     print("json descargado..")
+
+@cli.command()
+@click.option("--solicitud",help="numero de solicitud a buscar")
+def obtener_json_codigo(solicitud):
+    cur = obtener_conexion() 
+    query = "select  ip.numero_solicitud, ip.datos_solicitud, vp.codigo_version  from bpm_procesos.instancia_procesos ip inner join  bpm_procesos.version_procesos vp on ip.id_version_proceso = vp.id where ip.numero_solicitud ='"+solicitud+"';"  
+    cur.execute(query)
+    row = cur.fetchone()
+    cur.close()
+    escribir_archivo_json(solicitud, row)
+    print("json descargado..")
+
+def escribir_archivo_json(solicitud, data):
+    directorio = "json/"+data[2]
+    crear_directorio(directorio)
+    archivo_json = open(directorio+"/"+data[0]+"-"+solicitud+".json",'w')
+    archivo_json.writelines(data[1])
+    archivo_json.close()
     
 @cli.command()
 @click.option('--version', help='version proceso a ejecutar')
@@ -151,15 +177,56 @@ def obtener_listado_procesos_to_cvs(version):
     archivo_cvs.close()
     print("Se guardo el cvs "+version)
 
-def actualizar_plantilla_interno(proceso, plantilla, directorio):
+def actualizar_plantilla_interno(proceso, plantilla):
     print("actualizar plantilla")
     cursor = obtener_conexion()
-    cursor.execute("UPDATE bpm_procesos.version_procesos SET plantilla_resolucion = %s WHERE id = %s", (plantilla, proceso))
+    consulta = "UPDATE bpm_procesos.version_procesos SET plantilla_resolucion = '"+plantilla+"' WHERE id = '"+proceso+"'" 
+    print(consulta)
+    cursor.execute(consulta)
+    cursor.execute("COMMIT")
     cerrar_conexion()
     print("Se actualizo la plantilla "+str(proceso))
 
-    
+@cli.command()
+@click.option('--proceso_principal', help='nombre del grupo de procesos')
+@click.option('--subproceso', help='nombre del subproceso')
+def actualizar_plantilla(proceso_principal, subproceso):
+    with open('cvs/'+proceso_principal+'.csv', newline='') as file:
+        cvs_file =csv.reader(file, delimiter=',')
+        for row in cvs_file:
+            if(subproceso == row[1]):
+                id=row[0]
+                print("actualizar plantilla "+id)
+                archivo_plantilla = open(proceso_principal+"/"+subproceso+"-"+id+".html",'r')
+                plantilla = archivo_plantilla.read()
+                archivo_plantilla.close()
+                actualizar_plantilla_interno(row[0], plantilla)
+                break
 
+@cli.command()
+@click.option('--proceso', help='nombre del grupo de procesos')
+def generar_sql_migracion(proceso):
+     with open('cvs/'+proceso+'_MODIFICADOS.csv', newline='') as file:
+        cvs_file =csv.reader(file, delimiter=',')
+        crear_directorio("sql")
+        archivo_sql = open("sql/"+proceso+".sql",'w')
+        for row in cvs_file:
+            id=row[0]
+            sub_proceso = row[1]
+            print("actualizar plantilla "+id)
+            archivo_plantilla = open(proceso+"/"+sub_proceso+"-"+id+".html",'r')
+            plantilla = archivo_plantilla.read()
+            archivo_plantilla.close()
+            cursor = obtener_conexion()
+            consulta = "UPDATE bpm_procesos.version_procesos SET plantilla_resolucion = '"+plantilla+"', updated_user='josue.fuentes', updated_at = NOW() WHERE id = '"+proceso+"'"
+            print(consulta)
+            cursor.execute(consulta)
+            print("Se actualizo la plantilla "+str(sub_proceso))
+            archivo_sql.writelines("-- subProceso: "+sub_proceso+" id:"+id+"\n")
+            archivo_sql.writelines(consulta+";\n \n \n ")
+        cursor.execute("COMMIT")
+        archivo_sql.close()
+    
 @cli.command()
 def prueba():
     print("prueba")
