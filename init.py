@@ -14,8 +14,20 @@ def crear_conexion():
     port = os.getenv("PORT")
     return pymysql.connect(host =host, user= user, passwd=passwd, db=db,port=int(port) )
 
+def crear_conexion_release():
+    host = os.getenv("HOST_RELEASE")
+    user = os.getenv("USER_DB_RELEASE")
+    passwd = os.getenv("PASSWORD_RELEASE")
+    db = os.getenv("DATABASE_RELEASE")
+    port = os.getenv("PORT_RELEASE")
+    return pymysql.connect(host =host, user= user, passwd=passwd, db=db,port=int(port) )
+
 def obtener_conexion():
     mi_conexion = crear_conexion()
+    return mi_conexion.cursor()
+
+def obtener_conexion_release():
+    mi_conexion = crear_conexion_release()
     return mi_conexion.cursor()
 
 def cerrar_conexion():
@@ -125,16 +137,44 @@ def obtener_json(solicitud):
 @click.option("--solicitud",help="numero de solicitud a buscar")
 def obtener_json_codigo(solicitud):
     cur = obtener_conexion() 
-    query = "select  ip.numero_solicitud, ip.datos_solicitud, vp.codigo_version  from bpm_procesos.instancia_procesos ip inner join  bpm_procesos.version_procesos vp on ip.id_version_proceso = vp.id where ip.numero_solicitud ='"+solicitud+"';"  
+    query = crear_consulta_json(solicitud) 
     cur.execute(query)
     row = cur.fetchone()
     cur.close()
     escribir_archivo_json(solicitud, row)
     print("json descargado..")
 
+@cli.command()
+@click.option("--solicitud",help="numero de solicitud a buscar")
+def obtener_json_release(solicitud):
+    cur = obtener_conexion_release() 
+    query = crear_consulta_json(solicitud) 
+    cur.execute(query)
+    row = cur.fetchone()
+    cur.close()
+    escribir_archivo_json(solicitud, row)
+    print("json descargado..")
+ 
+def crear_consulta_json(solicitud):
+    return "select  ip.numero_solicitud, ip.datos_solicitud, vp.codigo_version  from bpm_procesos.instancia_procesos ip inner join  bpm_procesos.version_procesos vp on ip.id_version_proceso = vp.id where ip.numero_solicitud ='"+solicitud+"';"  
+
+def crear_consulta_form_solicitud(solicitud):
+    return "select  ip.numero_solicitud,  vp.plantilla_form_solicitud, vp.codigo_version  from bpm_procesos.instancia_procesos ip inner join  bpm_procesos.version_procesos vp on ip.id_version_proceso = vp.id where ip.numero_solicitud ='"+solicitud+"';"
+
 def escribir_archivo_json(solicitud, data):
     directorio = "json/"+data[2]
     crear_directorio(directorio)
+    print(directorio)
+    escribirArchivo(directorio, solicitud,data)
+
+def escribir_archivo_formulario(solicitud, data):
+    directorio = "formularios/"+data[2]
+    crear_directorio(directorio)
+    print(directorio)
+    escribirArchivo(directorio, solicitud, data)
+    
+    
+def escribirArchivo(directorio, solicitud, data):
     archivo_json = open(directorio+"/"+data[0]+"-"+solicitud+".json",'w')
     archivo_json.writelines(data[1])
     archivo_json.close()
@@ -218,7 +258,7 @@ def generar_sql_migracion(proceso):
             plantilla = archivo_plantilla.read()
             archivo_plantilla.close()
             cursor = obtener_conexion()
-            consulta = "UPDATE bpm_procesos.version_procesos SET plantilla_resolucion = '"+plantilla+"', updated_user='josue.fuentes', updated_at = NOW() WHERE id = '"+proceso+"'"
+            consulta = "UPDATE bpm_procesos.version_procesos SET plantilla_resolucion = '"+plantilla+"', updated_user='josue.fuentes', updated_at = NOW() WHERE id = '"+id+"'"
             print(consulta)
             cursor.execute(consulta)
             print("Se actualizo la plantilla "+str(sub_proceso))
@@ -231,7 +271,44 @@ def generar_sql_migracion(proceso):
 def prueba():
     print("prueba")
 
-
+@cli.command()
+@click.option('--proceso_principal', help='nombre del grupo de procesos')
+@click.option('--sub_proceso', help='nombre del subproceso')
+def generar_sql_migracion_por_proceso(proceso_principal, sub_proceso):
+    with open('cvs/'+proceso_principal+'.csv', newline='') as file:
+        cvs_file =csv.reader(file, delimiter=',')
+        for row in cvs_file:
+            if(sub_proceso == row[1]):
+                id=row[0]
+                print("actualizar plantilla "+id)
+                archivo_plantilla = open(proceso_principal+"/"+sub_proceso+"-"+id+".html",'r')
+                plantilla = archivo_plantilla.read()
+                archivo_plantilla.close()
+                cursor = obtener_conexion()
+                consulta = "UPDATE bpm_procesos.version_procesos SET plantilla_resolucion = '"+plantilla+"', updated_user='josue.fuentes', updated_at = NOW() WHERE id = '"+id+"'"
+                print(consulta)
+                cursor.execute(consulta)
+                print("Se actualizo la plantilla "+str(sub_proceso))
+                directorio= "sql/"+sub_proceso
+                crear_directorio(directorio)
+                archivo_sql = open(directorio+"/"+sub_proceso+".sql",'w')
+                archivo_sql.writelines("-- subProceso: "+sub_proceso+" id:"+id+"\n")
+                archivo_sql.writelines(consulta+";\n \n \n ")
+                cursor.execute("COMMIT")
+                archivo_sql.close()
+                
+@cli.command()
+@click.option('--numero_solicitud', help='numero de la solictud')
+def obtener_plantilla_formulario(numero_solicitud):
+    cur = obtener_conexion() 
+    query = crear_consulta_form_solicitud(numero_solicitud) 
+    print(query)
+    cur.execute(query)
+    row = cur.fetchone()
+    cur.close()
+    escribir_archivo_formulario(numero_solicitud, row)
+    print("json descargado..")
+    
 
 if __name__ == '__main__':
     cli()
