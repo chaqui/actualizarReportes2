@@ -15,7 +15,6 @@ def cli():
 
 def crear_conexion():
     host = os.getenv("HOST")
-    print(host)
     user = os.getenv("USER_DB")
     passwd = os.getenv("PASSWORD")
     db = os.getenv("DATABASE")
@@ -32,18 +31,18 @@ def crear_directorio(nombre):
         os.makedirs(directorio)
     return directorio
 
-def crear_data( dictamen, directorio):
+def crear_data( data, directorio):
     directorio = directorio + "/data.json"
     archivo_data = open(directorio,'w')
-    archivo_data.writelines(json.dumps(dictamen))
+    archivo_data.writelines(json.dumps(data))
 
 def guardar_plantilla_interna(plantilla, directorio, archivo, isJson = False):
     directorio = directorio + "/"+archivo
     archivo_data = open(directorio,'w')
-    if(isJson):
+    if(type(plantilla) == dict):
         archivo_data.writelines(json.dumps(plantilla))
     else:
-        archivo_data.writelines(plantilla)
+        archivo_data.writelines(str(plantilla))
 
 def leer_data(directorio):
     directorio = directorio + "/data.json"
@@ -60,13 +59,10 @@ def copiar_data(directorio):
     directorio_raiz = raiz + "plantilla/"
     os.system("cp -r "+directorio_raiz+" "+directorio)
 
-def colocar_caracteres_especiales(texto):
-    return texto.replace('"', '/"')
-
 def obtener_plantilla(directorio, archivo):
     directorio = directorio+"/"+archivo
     with open(directorio) as file:
-        return colocar_caracteres_especiales(file.read())
+        return file.read()
 
 @cli.command()
 @click.option('--codigo_dictamen', help='version proceso a ejecutar')
@@ -97,10 +93,16 @@ def build_plantilla(codigo_dictamen):
         for key in keys:
             dato = input("Ingrese el valor para "+key+": ")
             plantilla[0][key] = dato
-       
+        if(plantilla[1]):
+            plantilla[1]["header"] = obtener_plantilla(directorio, "header.html")
+        else:
+            plantilla.append({"header":obtener_plantilla(directorio, "header.html")})    
+        if(plantilla[2]):
+              plantilla[2]["header"] = obtener_plantilla(directorio, "header.html")
         plantilla.append({"plantilla":obtener_plantilla(directorio, "body.html")})
-        plantilla.append({"header":obtener_plantilla(directorio, "header.html")})    
-        guardar_plantilla(plantilla, directorio, "plantilla.json")   
+
+       
+        guardar_plantilla_interna(json.dumps(plantilla), directorio, "plantilla.json")   
         
 @cli.command()
 @click.option('--codigo_dictamen', help='version proceso a ejecutar')
@@ -116,25 +118,27 @@ def reset_plantilla(codigo_dictamen):
         file2 = open(directorio+"/plantilla.json",'w')
         file2.writelines(json.dumps(plantilla))
 def generar_select(plantilla, data):
-    return ("INSERT INTO bpm_procesos.tipos_dictamen (id, id_version_proceso, id_tipo_dictamen, nombre_dictamen, plantilla_dictamen, created_at, updated_at,updated_user, created_user) "
-            "VALUES ('"+data[3]+"',"+str(data[2])+","+str(data[0])+",'"+str(data[4])+"','"+plantilla+"',now(),now(),'josue.fuentes','josue.fuentes')")
+    return ("INSERT INTO bpm_procesos.plantilla_dictamen (id, id_version_proceso, id_tipo_dictamen, nombre_dictamen, plantilla_dictamen, created_at, updated_at,updated_user, created_user) "
+            "VALUES ('"+data[3]+"','"+str(data[2])+"','"+str(data[0])+"','"+str(data[4])+"','"+plantilla+"',now(),now(),'josue.fuentes','josue.fuentes')")
 def realizar_insert(plantilla, data):
     insert = generar_select(plantilla, data)
     cursor = obtener_conexion()
-    print(insert)
     cursor.execute(insert)
 
 def update_plantilla(plantilla,data):
-    update = ("UPDATE bpm_procesos.tipos_dictamen SET plantilla_dictamen = '"+plantilla+"', updated_at = now(), updated_user ='josue.fuentes' WHERE id = '"+data[4]+"'")
+    update = ("UPDATE bpm_procesos.plantilla_dictamen SET plantilla_dictamen = '"+plantilla+"', updated_at = now(), updated_user ='josue.fuentes' WHERE id = '"+data[4]+"'")
     cursor = obtener_conexion()
-    print(update)
     cursor.execute(update)
 
 def verificar_existencia_plantilla(data):
-    consulta = "SELECT * FROM bpm_procesos.tipos_dictamen WHERE id = "+str(data[4])
+    consulta = "SELECT * FROM bpm_procesos.plantilla_dictamen WHERE id = '"+str(data[3])+"'"
     cursor = obtener_conexion()
     cursor.execute(consulta)
     return len(cursor.fetchall()) > 0
+
+def generar_uuid():
+    uuid_plantilla = str(uuid.uuid4())
+    return uuid_plantilla.replace("-","")[0:25] 
 
 @cli.command()
 @click.option('--codigo_dictamen', help='version proceso a ejecutar')
@@ -143,10 +147,8 @@ def guardar_plantilla(codigo_dictamen):
     data = leer_data(directorio)
     plantilla = obtener_plantilla(directorio, "plantilla.json")
     if(len(data) < 4):
-        uuid_plantilla = str(uuid.uuid4())
-        uuid_plantilla = uuid_plantilla.replace("-","")[0:25] 
-        data.append(uuid_plantilla)
-        guardar_plantilla_interna(data, directorio, "data.json",True)   
+        data.append(generar_uuid())
+        crear_data(data, directorio)   
         print("data actualizada con el id de la plantilla")
     if(verificar_existencia_plantilla(data)):
         update_plantilla(plantilla, data)
@@ -154,26 +156,38 @@ def guardar_plantilla(codigo_dictamen):
         if(len(data) < 5):
             nombre_dictamen = input("Ingrese el nombre del dictamen: ")
             data.append(nombre_dictamen)
-            guardar_plantilla_interna(data, directorio, "data.json",True)  
+            crear_data(data, directorio)  
             print("data actualizada con nombre del dictamen") 
         realizar_insert(plantilla, data)
     print("Plantilla guardada")
 
 @cli.command()
 def generar_scripts():
+    script =""
     files = os.listdir(raiz)
     for file in files:
         if os.path.isdir(raiz+file):
-            if(file == "scripts"):
+            if(file == "scripts" or file == "plantilla"):
                 continue
             directorio = raiz + file
             data = leer_data(directorio)
             plantilla = obtener_plantilla(directorio, "plantilla.json")
             consulta = generar_select(plantilla, data)
-            guardar_plantilla_interna(consulta, raiz+"scripts", "script.sql")
+            script = script + consulta + ";\n"
+    directorio_script = raiz+"scripts"
+    crear_directorio("scripts")
+    guardar_plantilla_interna(script, directorio_script, "script.sql")
     
-        
-        
+@cli.command()
+@click.option('--codigo_dictamen', help='version proceso a ejecutar')
+def obtener_data(codigo_dictamen):
+    directorio = raiz + codigo_dictamen
+    dictamen = consultar_dictamen(codigo_dictamen)
+    if(len(dictamen) == 0):
+        print("No existe el dictamen")
+        return
+    dictamen = dictamen[0]
+    crear_data(dictamen, directorio)
     
 
 if __name__ == '__main__':
