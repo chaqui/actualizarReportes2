@@ -141,6 +141,9 @@ def obtener_json_codigo(solicitud):
     cur.execute(query)
     row = cur.fetchone()
     cur.close()
+    if(row == None):
+        print("No se encontro la solicitud")
+        return
     escribir_archivo_json(solicitud, row)
     print("json descargado..")
 
@@ -152,6 +155,9 @@ def obtener_json_release(solicitud):
     cur.execute(query)
     row = cur.fetchone()
     cur.close()
+    if(row == None):
+        print("No se encontro la solicitud")
+        return
     escribir_archivo_json(solicitud, row)
     print("json descargado..")
  
