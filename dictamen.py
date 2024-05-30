@@ -134,25 +134,26 @@ def generar_select(plantilla, data):
             "VALUES ('"+data[3]+"','"+str(data[2])+"','"+str(data[0])+"','"+str(data[4])+"','"+plantilla+"',now(),now(),'josue.fuentes','josue.fuentes')")
 def realizar_insert(plantilla, data):
     insert = generar_select(plantilla, data)
-    print(insert)
-    cursor = obtener_conexion()
-    cursor.execute(insert)
-    cursor.execute("COMMIT")
-    cursor.close()
+    ejectuar_consulta(insert)
+    
 def update_plantilla(plantilla,data):
     print("Actualizando plantilla")
     update = ("UPDATE bpm_procesos.plantilla_dictamen SET plantilla_dictamen = '"+plantilla+"', updated_at = now(), updated_user ='josue.fuentes' WHERE id = '"+data[3]+"'")
     print(update)
-    cursor = obtener_conexion()
-    cursor.execute(update)
-    cursor.execute("COMMIT")
-    cursor.close()
+    ejectuar_consulta(update)
+    
 def verificar_existencia_plantilla(data):
     consulta = "SELECT * FROM bpm_procesos.plantilla_dictamen WHERE id = '"+str(data[3])+"'"
     cursor = obtener_conexion()
     cursor.execute(consulta)
     return len(cursor.fetchall()) > 0
 
+def ejectuar_consulta(consulta):
+    cursor = obtener_conexion()
+    cursor.execute(consulta)
+    cursor.execute("COMMIT")
+    cursor.close()
+    
 def generar_uuid():
     uuid_plantilla = str(uuid.uuid4())
     return uuid_plantilla.replace("-","")[0:25] 
