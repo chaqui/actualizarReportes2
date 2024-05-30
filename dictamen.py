@@ -64,6 +64,10 @@ def obtener_plantilla(directorio, archivo):
     with open(directorio) as file:
         return file.read()
 
+def colocar_caracteres_especiales(texto):
+    return texto.replace('\"', '\\\"').replace("\n", "")
+
+
 @cli.command()
 @click.option('--codigo_dictamen', help='version proceso a ejecutar')
 def generar_plantilla(codigo_dictamen):
@@ -91,15 +95,23 @@ def build_plantilla(codigo_dictamen):
         plantilla = json.load(file)
         keys = plantilla[0].keys()
         for key in keys:
+            if(plantilla[0][key] != ""):
+                continue
             dato = input("Ingrese el valor para "+key+": ")
             plantilla[0][key] = dato
-        if(plantilla[1]):
-            plantilla[1]["header"] = obtener_plantilla(directorio, "header.html")
+        
+        if(len(plantilla) > 1 and plantilla[1]):
+            plantilla[1]["header"] = colocar_caracteres_especiales( obtener_plantilla(directorio, "header.html"))
         else:
-            plantilla.append({"header":obtener_plantilla(directorio, "header.html")})    
-        if(plantilla[2]):
-              plantilla[2]["header"] = obtener_plantilla(directorio, "header.html")
-        plantilla.append({"plantilla":obtener_plantilla(directorio, "body.html")})
+            plantilla.append({"header":colocar_caracteres_especiales(obtener_plantilla(directorio, "header.html"))})    
+        if(len(plantilla) > 2 and plantilla[2]):
+              plantilla[2]["plantilla"] = colocar_caracteres_especiales(obtener_plantilla(directorio, "body.html"))
+        else:
+            plantilla.append({"plantilla":colocar_caracteres_especiales(obtener_plantilla(directorio, "body.html"))})
+        if(len(plantilla) > 3 and plantilla[3]):
+            plantilla[3]["plantilla_desfavorable"] = colocar_caracteres_especiales(obtener_plantilla(directorio, "desfavorable.html"))
+        else:
+            plantilla.append({"plantilla_desfavorable":colocar_caracteres_especiales(obtener_plantilla(directorio, "desfavorable.html"))})
 
        
         guardar_plantilla_interna(json.dumps(plantilla), directorio, "plantilla.json")   
@@ -122,14 +134,19 @@ def generar_select(plantilla, data):
             "VALUES ('"+data[3]+"','"+str(data[2])+"','"+str(data[0])+"','"+str(data[4])+"','"+plantilla+"',now(),now(),'josue.fuentes','josue.fuentes')")
 def realizar_insert(plantilla, data):
     insert = generar_select(plantilla, data)
+    print(insert)
     cursor = obtener_conexion()
     cursor.execute(insert)
-
+    cursor.execute("COMMIT")
+    cursor.close()
 def update_plantilla(plantilla,data):
-    update = ("UPDATE bpm_procesos.plantilla_dictamen SET plantilla_dictamen = '"+plantilla+"', updated_at = now(), updated_user ='josue.fuentes' WHERE id = '"+data[4]+"'")
+    print("Actualizando plantilla")
+    update = ("UPDATE bpm_procesos.plantilla_dictamen SET plantilla_dictamen = '"+plantilla+"', updated_at = now(), updated_user ='josue.fuentes' WHERE id = '"+data[3]+"'")
+    print(update)
     cursor = obtener_conexion()
     cursor.execute(update)
-
+    cursor.execute("COMMIT")
+    cursor.close()
 def verificar_existencia_plantilla(data):
     consulta = "SELECT * FROM bpm_procesos.plantilla_dictamen WHERE id = '"+str(data[3])+"'"
     cursor = obtener_conexion()
