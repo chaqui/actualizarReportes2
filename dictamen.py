@@ -39,7 +39,7 @@ def crear_data( data, directorio):
 def guardar_plantilla_interna(plantilla, directorio, archivo, isJson = False):
     directorio = directorio + "/"+archivo
     archivo_data = open(directorio,'w')
-    if(type(plantilla) == dict):
+    if(type(plantilla) == dict or isJson):
         archivo_data.writelines(json.dumps(plantilla))
     else:
         archivo_data.writelines(str(plantilla))
@@ -191,6 +191,7 @@ def generar_scripts():
             data = leer_data(directorio)
             plantilla = obtener_plantilla(directorio, "plantilla.json")
             consulta = generar_select(plantilla, data)
+            script = script + "---"+data[4]+" \n"
             script = script + consulta + ";\n"
     directorio_script = raiz+"scripts"
     crear_directorio("scripts")
