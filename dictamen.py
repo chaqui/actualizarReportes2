@@ -191,7 +191,7 @@ def generar_scripts():
             data = leer_data(directorio)
             plantilla = obtener_plantilla(directorio, "plantilla.json")
             consulta = generar_select(plantilla, data)
-            script = script + "---"+data[4]+" \n"
+            script = script + "-- "+data[4]+" \n"
             script = script + consulta + ";\n"
     directorio_script = raiz+"scripts"
     crear_directorio("scripts")

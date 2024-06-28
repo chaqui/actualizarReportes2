@@ -129,21 +129,51 @@ def generar_scripts(codigo_proceso):
     script =""
     directorio = "./observaciones/version_procesos/"+codigo_proceso+"/"
     version_procesos = json.loads(obtener_plantilla(directorio, "listado.json"))
-    print(type(version_procesos))
     for version_proceso in version_procesos:
         plantilla = getPlantilla(directorio, version_proceso["codigo_version_proceso"], "plantilla.html")
         header = getPlantilla(directorio, version_proceso["codigo_version_proceso"], "header.html")
         if(not "id_plantilla" in version_proceso):
             continue
             #version_proceso["id_plantilla"] =generar_uuid()
-        script += "--- "+version_proceso["codigo_version_proceso"]+" \n"
+        script += "-- "+version_proceso["codigo_version_proceso"]+" \n"
         script += generar_insert_plantilla(version_proceso, plantilla, header)
         script += ";"
         script += "\n \n"
 
     print(script)
     guardar_plantilla_interna(script, directorio, "script.sql")
-        
+    
+def escribirArchivo(directorio, data):
+    archivo_json = open(directorio+"/"+data[0]+".json",'w')
+    archivo_json.writelines(data[1])
+    archivo_json.close()
+
+@cli.command()
+@click.option('--id-observacion', help='id de la observacion a consultar')
+def obtener_observaciones_campo(id_observacion):
+    consulta = "SELECT id, observacion_campos  FROM bpm_procesos.observaciones_solicitudes where id = '"+id_observacion+"'"
+    observaciones_campo = ejecutar_consulta(consulta)
+    directorio = "./observaciones/observaciones_campo/"
+    crear_directorio(directorio)
+    escribirArchivo(directorio, observaciones_campo[0])
+
+@cli.command()
+@click.option('--codigo-proceso', help='codigo del proceso a guardar')
+def generar_scripts_update(codigo_proceso):
+    directorio = "./observaciones/version_procesos/"+codigo_proceso+"/"
+    version_procesos = json.loads(obtener_plantilla(directorio, "listado.json"))
+    script =""
+    for version_proceso in version_procesos:
+        plantilla = getPlantilla(directorio, version_proceso["codigo_version_proceso"], "plantilla.html")
+        header = getPlantilla(directorio, version_proceso["codigo_version_proceso"], "header.html")
+        script += "-- "+version_proceso["codigo_version_proceso"]+" \n"
+        script += generar_update_plantilla(version_proceso, plantilla, header)
+        script += ";"
+        script += "\n \n"
+
+    print(script)
+    guardar_plantilla_interna(script, directorio, "script-update.sql")
+    
         
 if __name__ == '__main__':
     cli()
